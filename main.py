@@ -17,10 +17,19 @@ async def main():
     try:
         from reo.workflows.bootstrap import prepare_runtime
         from reo.surface import server as surface_server
+        from reo.style.sync_emojis import run_sync
 
         await prepare_runtime()
         surface_server.bind_bot(bot)
         logger.separator()
+        
+        # Fast Emoji Synchronization
+        if BotConfig.SYNC_EMOJIS:
+            run_sync()
+        else:
+            logger.info("EmojiSync is currently disabled via config.")
+        logger.separator()
+        
         await bot.load_extension("reo.src")
 
         tasks = []
@@ -46,6 +55,13 @@ async def main():
 
         async def start_web():
             try:
+                import logging
+                class EndpointFilter(logging.Filter):
+                    def filter(self, record: logging.LogRecord) -> bool:
+                        return "/live" not in record.getMessage()
+                
+                logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+                
                 web_config = uvicorn.Config(
                     surface_server.app,
                     host=BotConfig.WEB_HOST,

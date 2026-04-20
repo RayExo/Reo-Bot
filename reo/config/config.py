@@ -9,14 +9,15 @@ class BotConfigClass:
     PREFIX = os.getenv("PREFIX", "?")
     SHARD_COUNT = int(os.getenv("SHARD_COUNT", 2))
     NAME = os.getenv("BOT_NAME", "Reo")
-    WEB_HOST = os.getenv("WEB_HOST", os.getenv("API_HOST", "0.0.0.0"))
-    WEB_PORT = int(os.getenv("WEB_PORT", os.getenv("API_PORT", 25572)))
+    WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
+    WEB_PORT = int(os.getenv("WEB_PORT", 25572))
     DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
     DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
     DASHBOARD_SECRET = os.getenv("DASHBOARD_SECRET", "")
     DASHBOARD_BASE_URL = os.getenv("DASHBOARD_BASE_URL", f"http://localhost:{WEB_PORT}")
     API_HOST = WEB_HOST
     API_PORT = WEB_PORT
+    SYNC_EMOJIS = os.getenv("SYNC_EMOJIS", "True").lower() == "true"
 
 
 class urls:
@@ -49,7 +50,7 @@ class Types:
 
 class storage:
     def __init__(self):
-        self.uri = os.getenv("MONGO_URI", "mongodb+srv://CodeXmongodb:codexop@codexcluster.tebuglj.mongodb.net/?appName=CodeXCluster")
+        self.uri = os.getenv("MONGO_URI", "")
         self.name = os.getenv("MONGO_NAME", "reo")
 
 

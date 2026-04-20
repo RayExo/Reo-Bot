@@ -375,6 +375,20 @@ def _render_layout(
     html {{
       color-scheme: dark;
     }}
+    ::-webkit-scrollbar {{
+      width: 8px;
+      height: 8px;
+    }}
+    ::-webkit-scrollbar-track {{
+      background: rgba(255, 255, 255, 0.02);
+    }}
+    ::-webkit-scrollbar-thumb {{
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 4px;
+    }}
+    ::-webkit-scrollbar-thumb:hover {{
+      background: rgba(255, 80, 103, 0.8);
+    }}
     body {{
       margin: 0;
       min-height: 100vh;
@@ -896,6 +910,9 @@ def _render_layout(
             cache: "no-store",
           }});
           if (!response.ok) {{
+            if (response.status === 403) {{
+              window.location.reload();
+            }}
             return;
           }}
           const payload = await response.json();
@@ -923,7 +940,7 @@ def _render_login(notice: str | None = None) -> str:
     action = (
         '<a class="primary-btn" href="/dashboard/login">Login with Discord</a>'
         if auth_ready
-        else "<div class='notice'>Set `DISCORD_CLIENT_SECRET` in `secrets/.env` to enable Discord login.</div>"
+        else "<div class='notice'>Set `DISCORD_CLIENT_SECRET` in `.env` to enable Discord login.</div>"
     )
     body = f"""
     <section class="hero auth-shell">
@@ -1526,6 +1543,15 @@ async def dashboard_overview(request: Request, guild_id: int, notice: str | None
     return HTMLResponse(_render_overview(session, guilds, current_guild, get_bot().get_guild(guild_id), state, notice=notice))
 
 
+@router.get("/guild/{guild_id}/live")
+async def dashboard_live(request: Request, guild_id: int, tab: str | None = None):
+    session, guilds, current_guild, state = await _require_dashboard_context(request, guild_id)
+    if not session or not current_guild:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    bot_guild = get_bot().get_guild(guild_id)
+    return JSONResponse(_live_payload(current_guild, bot_guild, state))
+
+
 @router.get("/guild/{guild_id}/{tab}", response_class=HTMLResponse)
 async def dashboard_tab(request: Request, guild_id: int, tab: str, notice: str | None = None):
     session, guilds, current_guild, state = await _require_dashboard_context(request, guild_id)
@@ -1549,15 +1575,6 @@ async def dashboard_tab(request: Request, guild_id: int, tab: str, notice: str |
     if not renderer:
         return RedirectResponse(f"/dashboard/guild/{guild_id}", status_code=303)
     return HTMLResponse(renderer())
-
-
-@router.get("/guild/{guild_id}/live")
-async def dashboard_live(request: Request, guild_id: int, tab: str | None = None):
-    session, guilds, current_guild, state = await _require_dashboard_context(request, guild_id)
-    if not session or not current_guild:
-        return JSONResponse({"error": "forbidden"}, status_code=403)
-    bot_guild = get_bot().get_guild(guild_id)
-    return JSONResponse(_live_payload(current_guild, bot_guild, state))
 
 
 @router.post("/guild/{guild_id}/general")

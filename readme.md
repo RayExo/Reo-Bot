@@ -6,11 +6,19 @@ REO is a Discord bot with a built-in dashboard for moderation, security, tickets
 
 ### Overview
 
-![REO Overview](attach/dashboard-overview.png)
+![REO Overview](https://media.discordapp.net/attachments/1491710555587874846/1495749350511476926/reo1.png?ex=69e760a2&is=69e60f22&hm=f48dcad7762fd1059338292eebb5022ce1b0209cf82d1160e1b0c3aa840b38cc&=&format=webp&quality=lossless&width=1573&height=884)
 
 ### Music
 
-![REO Music](attach/dashboard-music.png)
+![REO Music](https://media.discordapp.net/attachments/1491710555587874846/1495749589700186202/image.png?ex=69e760db&is=69e60f5b&hm=0533ad53b73cebddd94d9345304b6579eaed54413f12ff9700355a7f573882f0&=&format=webp&quality=lossless&width=1573&height=884)
+
+
+### Bot UI
+
+![REO Help Command UI](https://media.discordapp.net/attachments/1491710555587874846/1495750041191841913/image.png?ex=69e76147&is=69e60fc7&hm=a7dee9c78d710f873a827796b27ffb286ebf0eb4e3921659900c7db455456972&=&format=webp&quality=lossless&width=724&height=933)
+
+![REO Music Command UI](https://media.discordapp.net/attachments/1491710555587874846/1495750051836858548/image.png?ex=69e7614a&is=69e60fca&hm=bb4f986480a22cd1e2dfff28c58a4b1c5ef2df155f6841ea9c82a0ccf44e8bbf&=&format=webp&quality=lossless&width=823&height=603)
+
 
 ## Features
 
@@ -37,7 +45,7 @@ REO is a Discord bot with a built-in dashboard for moderation, security, tickets
 - `reo/surface` - dashboard and web routes
 - `reo/engine` - bot core
 - `storage` - Mongo-backed storage layer
-- `secrets/.env` - local environment config
+- `.env` - local environment config
 
 ## Setup
 
@@ -49,7 +57,7 @@ pip install -r requirements.txt
 
 ### 2. Create environment file
 
-Create `secrets/.env`:
+Create `.env`:
 
 ```env
 TOKEN="YOUR_BOT_TOKEN"

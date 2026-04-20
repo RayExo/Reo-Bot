@@ -1,6 +1,6 @@
 # REO
 
-REO is a Discord bot with a built-in dashboard for moderation, security, tickets, giveaways, welcomer, music, logs, and command access.
+Reo is a modern, multipurpose Discord bot featuring a seamless web dashboard, comprehensive server security, advanced music playback, and automated community management tools.
 
 ## Showcase
 

@@ -36,7 +36,7 @@ async def load_storage():
         storage.music.create_table(),
     ]
     await asyncio.gather(*tasks)
-    logger.database("Storage collections loaded")
+    logger.database("Database collections loaded")
 
 
 loadDataBase = load_storage

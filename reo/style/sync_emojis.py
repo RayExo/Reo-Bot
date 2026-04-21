@@ -84,12 +84,10 @@ def run_sync():
     for animated_str, name, old_id in matches:
         animated = (animated_str == 'a')
         
-        # Check if emoji is already in Bot's Application Emojis
         existing = next((e for e in app_emojis if e['id'] == old_id), None) or next((e for e in app_emojis if e['name'] == name), None)
 
         if existing:
             new_id = existing['id']
-            # If the ID differs, that means it's already uploaded under the same name but emoji.py has an old ID
             if old_id != new_id:
                 old_str = f"<{animated_str}:{name}:{old_id}>"
                 new_str = f"<{animated_str}:{existing['name']}:{new_id}>"
@@ -124,7 +122,6 @@ def run_sync():
             new_str = f"<{animated_str}:{new_emoji['name']}:{new_id}>"
             content = content.replace(old_str, new_str)
             
-            # Add to local app_emojis so we don't upload duplicates in the same pass!
             app_emojis.append(new_emoji)
             
             updated = True

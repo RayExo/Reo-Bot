@@ -58,7 +58,7 @@ class CollectionStore:
                 sparse=True,
                 name=index_name,
             )
-        logger.info(f'Storage collection {self.name} ready')
+        logger.info(f'Database collection {self.name} ready')
 
     async def insert(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         incoming = self._filter_payload(payload)

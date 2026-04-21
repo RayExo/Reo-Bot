@@ -24,7 +24,8 @@ class ready(commands.Cog):
     async def on_ready(self):
         try:
             logger.startup_summary(self.bot)
-            logger.web_startup_summary(self.bot)
+            if self.bot.BotConfig.DASHBOARD_ENABLED:
+                logger.web_startup_summary(self.bot)
             logger.success(f"Connected as {self.bot.user}")
             try:
                 asyncio.create_task(self.activity())

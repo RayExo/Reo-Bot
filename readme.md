@@ -23,7 +23,7 @@ Reo is a modern, multipurpose Discord bot featuring a seamless web dashboard, co
 ## Features
 
 - Discord bot with hybrid commands
-- MongoDB storage
+- MongoDB Database
 - FastAPI dashboard
 - Music controller with live artwork, queue, and activity
 - Security and automod controls

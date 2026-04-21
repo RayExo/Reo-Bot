@@ -9,6 +9,7 @@ class BotConfigClass:
     PREFIX = os.getenv("PREFIX", "?")
     SHARD_COUNT = int(os.getenv("SHARD_COUNT", 2))
     NAME = os.getenv("BOT_NAME", "Reo")
+    DASHBOARD_ENABLED = os.getenv("DASHBOARD_ENABLED", "True").lower() == "true"
     WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
     WEB_PORT = int(os.getenv("WEB_PORT", 25572))
     DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
@@ -26,16 +27,18 @@ class urls:
 
 
 class channels:
-    report_channel = 1464913496537042995
-    guild_join_webhook = ""
-    guild_leave_webhook = ""
+    report_channel = int(os.getenv("REPORT_CHANNEL"))
+    guild_join_webhook = os.getenv("GUILD_JOIN_WEBHOOK", "")
+    guild_leave_webhook = os.getenv("GUILD_LEAVE_WEBHOOK", "")
+    shards_log_webhook = os.getenv("SHARDS_LOG_WEBHOOK", "")
 
-    shards_log_webhook = ""
 
+_dev_env = os.getenv("DEVELOPER_IDS", "870179991462236170, 767979794411028491")
+_dev_parsed = [int(u.strip()) for u in _dev_env.split(",") if u.strip().isdigit()]
 
 class users:
-    developer = 870179991462236170, 767979794411028491, 1175647859614429240
-    root = [870179991462236170, 767979794411028491, 1175647859614429240]
+    developer = tuple(_dev_parsed)
+    root = list(_dev_parsed)
 
 
 class Types:

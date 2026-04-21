@@ -72,10 +72,13 @@ async def main():
             except Exception:
                 logger.error(f"Error in file {__file__}: {traceback.format_exc()}")
 
-        try:
-            tasks.append(asyncio.create_task(start_web()))
-        except Exception:
-            logger.error(f"Error in file {__file__}: {traceback.format_exc()}")
+        if BotConfig.DASHBOARD_ENABLED:
+            try:
+                tasks.append(asyncio.create_task(start_web()))
+            except Exception:
+                logger.error(f"Error in file {__file__}: {traceback.format_exc()}")
+        else:
+            logger.info("\033[1;31mDashboard is disabled via config.\033[0m")
         try:
             tasks.append(asyncio.create_task(start_bot()))
         except Exception:

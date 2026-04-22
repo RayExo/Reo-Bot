@@ -398,25 +398,43 @@ def _render_layout(
         radial-gradient(circle at top left, rgba(255, 80, 103, 0.16), transparent 24%),
         radial-gradient(circle at top right, rgba(143, 20, 41, 0.16), transparent 24%),
         linear-gradient(180deg, #030102 0%, #080304 46%, #050203 100%);
+      background-attachment: fixed;
+    }}
+    body::before {{
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 30px 30px;
+      mask-image: radial-gradient(circle at center, rgba(0,0,0,0.92), transparent 80%);
     }}
     .frame {{
-      width: min(1180px, calc(100% - 24px));
-      margin: 12px auto;
+      width: min(1240px, calc(100% - 24px));
+      margin: 16px auto;
       border: 1px solid var(--line);
-      border-radius: 26px;
+      border-radius: 28px;
       overflow: hidden;
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 20%), rgba(5, 2, 3, 0.86);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(18px);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)),
+        linear-gradient(180deg, rgba(10, 4, 6, 0.9), rgba(5, 2, 3, 0.9));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(18px) saturate(120%);
     }}
     .topbar {{
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 14px;
-      padding: 18px 20px;
+      padding: 18px 22px;
       border-bottom: 1px solid var(--line);
-      background: rgba(255,255,255,0.02);
+      background: rgba(16, 8, 10, 0.72);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }}
     .brand {{
       display: grid;
@@ -424,8 +442,8 @@ def _render_layout(
     }}
     .brand strong {{
       font-family: "Sora", sans-serif;
-      font-size: 1.1rem;
-      letter-spacing: 0.08em;
+      font-size: 1.16rem;
+      letter-spacing: 0.06em;
     }}
     .brand span {{
       color: var(--muted);
@@ -437,8 +455,8 @@ def _render_layout(
       align-items: center;
       padding: 8px 10px;
       border: 1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.05);
     }}
     .account img {{
       width: 40px;
@@ -466,8 +484,8 @@ def _render_layout(
     }}
     .content {{
       display: grid;
-      gap: 14px;
-      padding: 16px;
+      gap: 16px;
+      padding: 18px;
     }}
     .hero {{
       display: grid;
@@ -476,9 +494,11 @@ def _render_layout(
     }}
     .panel {{
       border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 18px;
+      border-radius: 18px;
+      padding: 20px;
       background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 30px rgba(0, 0, 0, 0.22);
+      animation: fadeInUp 0.35s ease;
     }}
     .panel h1, .panel h2, .panel h3 {{
       margin: 0 0 8px;
@@ -503,11 +523,15 @@ def _render_layout(
       border: 1px solid rgba(255, 80, 103, 0.24);
       background: rgba(255, 80, 103, 0.1);
       color: #ffe3e7;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
     }}
     .guild-strip, .tabs {{
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
     }}
     .guild-pill, .tab, .ghost-btn, .primary-btn, .save-btn {{
       display: inline-flex;
@@ -518,14 +542,22 @@ def _render_layout(
       border-radius: 999px;
       text-decoration: none;
       font-weight: 700;
+      white-space: nowrap;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
     }}
     .guild-pill, .tab, .ghost-btn {{
       color: var(--text);
       background: rgba(255,255,255,0.02);
     }}
+    .guild-pill:hover, .tab:hover, .ghost-btn:hover {{
+      transform: translateY(-1px);
+      border-color: var(--line-strong);
+      background: rgba(255,255,255,0.06);
+    }}
     .guild-pill.active, .tab.active {{
       background: rgba(255, 80, 103, 0.14);
       border-color: rgba(255, 80, 103, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(255, 80, 103, 0.24);
     }}
     .primary-btn, .save-btn {{
       color: #fff8f9;
@@ -533,6 +565,10 @@ def _render_layout(
       border-color: rgba(255,255,255,0.08);
       box-shadow: 0 12px 24px rgba(143, 20, 41, 0.22);
       cursor: pointer;
+    }}
+    .primary-btn:hover, .save-btn:hover {{
+      transform: translateY(-1px);
+      box-shadow: 0 16px 28px rgba(143, 20, 41, 0.3);
     }}
     .grid {{
       display: grid;
@@ -545,6 +581,7 @@ def _render_layout(
       border-radius: 16px;
       border: 1px solid var(--line);
       background: rgba(255,255,255,0.02);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }}
     .metric {{
       margin-top: 6px;
@@ -565,6 +602,12 @@ def _render_layout(
       border-radius: 18px;
       padding: 16px;
       background: rgba(255,255,255,0.02);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }}
+    .guild-card:hover {{
+      transform: translateY(-2px);
+      border-color: var(--line-strong);
+      box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22);
     }}
     .guild-card-head {{
       display: flex;
@@ -625,6 +668,7 @@ def _render_layout(
       background: rgba(7, 3, 5, 0.94);
       color: var(--text);
       outline: none;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
     }}
     input:focus, select:focus, textarea:focus {{
       border-color: rgba(255, 80, 103, 0.4);
@@ -648,6 +692,11 @@ def _render_layout(
       border: 1px solid var(--line);
       background: rgba(255,255,255,0.02);
       color: var(--text);
+      transition: border-color 0.16s ease, background 0.16s ease;
+    }}
+    .check:hover {{
+      border-color: var(--line-strong);
+      background: rgba(255,255,255,0.04);
     }}
     .check input {{
       width: 18px;
@@ -666,6 +715,7 @@ def _render_layout(
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
       gap: 14px;
       padding: 12px 14px;
       border-radius: 16px;
@@ -679,6 +729,11 @@ def _render_layout(
       color: var(--text);
       font-weight: 700;
       cursor: pointer;
+      transition: transform 0.16s ease, filter 0.16s ease;
+    }}
+    .danger-btn:hover, .ok-btn:hover {{
+      transform: translateY(-1px);
+      filter: brightness(1.05);
     }}
     .danger-btn {{
       background: rgba(251,113,133,0.15);
@@ -752,6 +807,7 @@ def _render_layout(
       color: #d5def1;
       font-family: Consolas, monospace;
       font-size: 0.86rem;
+      line-height: 1.55;
       white-space: pre-wrap;
     }}
     .auth-shell {{
@@ -772,6 +828,16 @@ def _render_layout(
       flex-wrap: wrap;
       margin-top: 18px;
     }}
+    @keyframes fadeInUp {{
+      from {{
+        opacity: 0;
+        transform: translateY(10px);
+      }}
+      to {{
+        opacity: 1;
+        transform: translateY(0);
+      }}
+    }}
     @media (max-width: 980px) {{
       .hero, .music-now, .fields, .switches {{
         grid-template-columns: 1fr;
@@ -791,7 +857,7 @@ def _render_layout(
       .frame {{
         width: calc(100% - 12px);
         margin: 6px auto;
-        border-radius: 22px;
+        border-radius: 20px;
       }}
       .topbar, .content {{
         padding-left: 14px;
@@ -803,7 +869,7 @@ def _render_layout(
       }}
       .panel {{
         padding: 16px;
-        border-radius: 18px;
+        border-radius: 16px;
       }}
       .brand strong {{
         font-size: 1rem;

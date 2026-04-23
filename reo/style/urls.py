@@ -10,4 +10,3 @@ TICKET = "https://cdn.discordapp.com/attachments/1286969360224882688/12869693781
 
 DEFAULT_MUSIC_BANNER = "https://media.discordapp.net/attachments/1229366361826918405/1357196877023547492/images_21.jpg?ex=67ef5396&is=67ee0216&hm=065303d8f2472468d5a0a4813839aadbd08bb10d556739ef9907bece29f4c034&"
 
-TRANSCRIPT_BASE_URL = "https://example.com/reo/transcripts"

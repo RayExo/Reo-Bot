@@ -10,6 +10,7 @@ import httpx
 import storage
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from reo.src.modules import ticket_panel
 
 from reo.config.config import BotConfigClass
 from reo.memory.cache import cache
@@ -1435,6 +1436,9 @@ def _render_tickets(session: dict[str, Any], guilds: list[dict[str, Any]], curre
             <label>Panel message content
               <textarea name="ticket_panel_message_content">{_escape(module.get('ticket_panel_message_content', ''))}</textarea>
             </label>
+            <label>Close message content
+              <textarea name="close_ticket_message_content">{_escape(module.get('close_ticket_message_content', ''))}</textarea>
+            </label>
           </div>
           <button class="save-btn" type="submit">Save ticket module</button>
         </form>
@@ -1747,7 +1751,7 @@ async def update_ticket_settings(request: Request, guild_id: int):
     data = await _parse_form(request)
     module = sorted(state["ticket_modules"], key=lambda item: item.get("ticket_module_id", 0))[0]
     support_roles = [int(item.strip()) for item in (data.get("support_roles") or "").split(",") if item.strip().isdigit()]
-    await storage.ticket_settings.update(
+    updated_module = await storage.ticket_settings.update(
         id=module["id"],
         enabled=_bool_from_form(data, "enabled"),
         support_roles=support_roles,
@@ -1756,7 +1760,22 @@ async def update_ticket_settings(request: Request, guild_id: int):
         closed_ticket_category_id=int(data["closed_ticket_category_id"]) if data.get("closed_ticket_category_id", "").isdigit() else None,
         ticket_panel_channel_id=int(data["ticket_panel_channel_id"]) if data.get("ticket_panel_channel_id", "").isdigit() else None,
         ticket_panel_message_content=(data.get("ticket_panel_message_content") or "").strip() or None,
+        close_ticket_message_content=(data.get("close_ticket_message_content") or "").strip() or None,
     )
+    bot = get_bot()
+    if bot and updated_module:
+        try:
+            await ticket_panel.send_ticket_panel_message(updated_module, bot)
+            open_tickets = await storage.tickets.gets(
+                guild_id=guild_id,
+                ticket_module_id=updated_module.get("ticket_module_id"),
+                closed=False,
+                deleted=False,
+            )
+            for ticket in open_tickets:
+                await ticket_panel.send_close_ticket_module(ticket, bot)
+        except Exception:
+            pass
     return RedirectResponse(f"/dashboard/guild/{guild_id}/tickets?notice=Ticket%20module%20saved", status_code=303)
 
 

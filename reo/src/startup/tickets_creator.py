@@ -17,7 +17,7 @@ async def resume_ticket_creator(bot: commands.Bot):
     if resumed:
         return logger.info("Ticket Creator already resumed")
     
-    # resumed = True dont need this line
+    resumed = True
     
     # Wait for the bot to be ready
     while not bot.is_ready():
@@ -63,7 +63,7 @@ async def resume_ticket_closer(bot: commands.Bot):
     if ticket_closed_resumed:
         return logger.info("Ticket Closer already resumed")
     
-    # ticket_closed_resumed = True dont need this line
+    ticket_closed_resumed = True
     
     # Wait for the bot to be ready
     while not bot.is_ready():

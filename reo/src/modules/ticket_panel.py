@@ -16,11 +16,74 @@ import storage
 import datetime
 
 import asyncio
-import os
+from pathlib import Path
 
 from reo.utils import chat_exporter
 
 from io import BytesIO
+
+
+def _parse_json_field(value, default):
+    if value is None:
+        return default
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return default
+        try:
+            return json.loads(text)
+        except Exception:
+            return default
+    return default
+
+
+def _support_roles(value):
+    raw = _parse_json_field(value, [])
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for role_id in raw:
+        try:
+            out.append(int(role_id))
+        except Exception:
+            continue
+    return out
+
+
+def _build_layout_with_actions(markdown_lines, actions, timeout=None):
+    view = discord.ui.LayoutView(timeout=timeout)
+    container = discord.ui.Container()
+    for line in markdown_lines:
+        if line:
+            container.add_item(discord.ui.TextDisplay(line))
+    if actions:
+        row = discord.ui.ActionRow()
+        for item in actions:
+            row.add_item(item)
+        container.add_item(row)
+    view.add_item(container)
+    return view
+
+
+def _safe_text(value, fallback):
+    return value.strip() if isinstance(value, str) and value.strip() else fallback
+
+
+async def _edit_or_resend_v2_message(channel, message, view):
+    if message:
+        try:
+            await message.edit(view=view)
+            return message
+        except discord.HTTPException as error:
+            if "IS_COMPONENTS_V2" not in str(error):
+                raise
+            try:
+                await message.delete()
+            except Exception:
+                pass
+    return await channel.send(view=view)
 
 
 async def save_transcript_file(
@@ -30,14 +93,14 @@ async def save_transcript_file(
     channel_id: int,
 ):
     try:
-        if not os.path.exists(f"./transcripts"):
-            os.makedirs(f"./transcripts")
-        file_path = f"./transcripts/{guild_id}-{channel_id}-{creator_id}.html"
+        transcripts_dir = Path(__file__).resolve().parents[3] / "transcripts"
+        transcripts_dir.mkdir(parents=True, exist_ok=True)
+        transcript_file_id = f"{guild_id}-{channel_id}-{creator_id}.html"
+        file_path = transcripts_dir / transcript_file_id
         with open(file_path, "wb") as f:
             f.write(transcript_bytes.read())
 
-        # return the file path without the ".""
-        return file_path[1:]
+        return transcript_file_id
     except Exception as e:
         logger.error(f"Error in file {__file__}: {traceback.format_exc()}")
         return False
@@ -47,23 +110,32 @@ async def delete_channel_callback(
     interaction: discord.Interaction, bot: AutoShardedBot, ticket_data
 ):
     try:
+        async def safe_interaction_reply(message: str):
+            try:
+                await interaction.edit_original_response(content=message)
+                return
+            except discord.NotFound:
+                pass
+            except discord.HTTPException:
+                pass
+            try:
+                await interaction.followup.send(content=message, ephemeral=True)
+            except Exception:
+                pass
+
         await interaction.response.defer(ephemeral=True, thinking=True)
         ticket_data = await storage.tickets.get(id=ticket_data["id"])
         if not ticket_data:
-            return await interaction.edit_original_response(
-                content=f"{bot.emoji.ERROR} Ticket not found"
-            )
+            return await safe_interaction_reply(f"{bot.emoji.ERROR} Ticket not found")
         if not ticket_data.get("closed", False):
-            return await interaction.edit_original_response(
-                content=f"{bot.emoji.ERROR} Ticket is not closed"
-            )
+            return await safe_interaction_reply(f"{bot.emoji.ERROR} Ticket is not closed")
         guild_id_str = str(interaction.guild.id)
         ticket_module_id_str = str(ticket_data.get("ticket_module_id", 0))
         ticket_settings = cache.ticket_settings.get(guild_id_str, {})
         support_roles_str = ticket_settings.get(ticket_module_id_str, {}).get(
             "support_roles", "[]"
         )
-        support_role_ids = json.loads(support_roles_str)
+        support_role_ids = _support_roles(support_roles_str)
 
         if not await checks.close_ticket_permissions(
             user=interaction.user,
@@ -72,13 +144,14 @@ async def delete_channel_callback(
             support_role_ids=support_role_ids,
             notify=False,
         ):
-            return await interaction.edit_original_response(
-                content=f"{bot.emoji.ERROR} You don't have permission to delete this ticket channel"
+            return await safe_interaction_reply(
+                f"{bot.emoji.ERROR} You don't have permission to delete this ticket channel"
             )
 
         try:
             channel = interaction.guild.get_channel(ticket_data.get("channel_id"))
             if channel:
+                await safe_interaction_reply(f"{bot.emoji.SUCCESS} Deleting channel...")
                 await channel.delete()
                 try:
                     await storage.tickets.update(id=ticket_data["id"], deleted=True)
@@ -86,10 +159,7 @@ async def delete_channel_callback(
                     logger.error(f"Error updating ticket: {e}")
         except Exception as e:
             logger.error(f"Error deleting channel: {e}")
-
-        await interaction.edit_original_response(
-            content=f"{bot.emoji.SUCCESS} Channel deleted successfully"
-        )
+            await safe_interaction_reply(f"{bot.emoji.ERROR} Failed to delete channel")
     except Exception as e:
         logger.error(f"Error in file {__file__}: {traceback.format_exc()}")
 
@@ -100,11 +170,11 @@ async def ticket_close_action(
     try:
         if ticket_data.get("closed", False):
             logger.warning(f"Ticket already closed: {ticket_data['id']}")
-            return
+            return False
         ticket_data = await storage.tickets.update(
             id=ticket_data.get("id"),
             closed=True,
-            closed_at=datetime.datetime.utcnow().isoformat(),
+            closed_at=datetime.datetime.utcnow(),
         )
         if ticket_data.get("closed", False) == False:
             logger.warning(f"Error closing ticket: {ticket_data['id']}")
@@ -134,7 +204,7 @@ async def ticket_close_action(
                 ticket_settings_data = cache.ticket_settings.get(str(guild.id), {}).get(
                     str(ticket_module_id), {}
                 )
-                for support_role_id in json.loads(
+                for support_role_id in _support_roles(
                     ticket_settings_data.get("support_roles", "[]")
                 ):
                     support_role = guild.get_role(support_role_id)
@@ -149,7 +219,7 @@ async def ticket_close_action(
                 closed_category = None
                 if closed_category_id:
                     closed_category = guild.get_channel(closed_category_id)
-                    if len(closed_category.channels) >= 50:
+                    if closed_category and len(closed_category.channels) >= 50:
                         closed_category = None
 
                 await channel.edit(
@@ -163,50 +233,51 @@ async def ticket_close_action(
 
         transcript_url = None
         if transcript_bytes:
-            transcript_file_path = await save_transcript_file(
+            transcript_file_id = await save_transcript_file(
                 transcript_bytes=transcript_bytes,
                 creator_id=ticket_data["creator_id"],
                 guild_id=ticket_data["guild_id"],
                 channel_id=ticket_data["channel_id"],
             )
-            if transcript_file_path:
-                transcript_url = f"{bot.urls.TRANSCRIPT_BASE_URL}{transcript_file_path}"
+            if transcript_file_id:
+                base_url = str(getattr(bot.BotConfig, "DASHBOARD_BASE_URL", "") or "").rstrip("/")
+                if base_url:
+                    transcript_url = f"{base_url}/transcripts/{transcript_file_id}"
 
         try:
-            embed = discord.Embed(
-                title=f"Ticket #{str(ticket_data.get('ticket_id')).zfill(4)} Closed",
-                description=f"""**{bot.emoji.ID} ID**: `{ticket_data.get('ticket_id')}`
-**{bot.emoji.GUILD} Guild**: {guild.name}
-**{bot.emoji.USER} Creator**: {f"<@{ticket_data.get('creator_id')}>"}
-**{bot.emoji.CLOSE} Closed By**: {closed_by.mention if closed_by else "Unknown"}
-**{bot.emoji.CREATED} Created At**: <t:{int(ticket_data.get('created_at').timestamp())}:F>
-**{bot.emoji.CREATED} Closed At**: <t:{int(ticket_data.get('closed_at').timestamp())}:F>
-**{bot.emoji.TOPIC} Topic**: {channel.topic if channel.topic else "No topic provided"}
-**{bot.emoji.CHANNEL} Channel ID**: `{channel.id}`""",
-                color=color.red,
+            close_markdown = (
+                f"## Ticket #{str(ticket_data.get('ticket_id')).zfill(4)} Closed\n"
+                f"**{bot.emoji.ID} ID**: `{ticket_data.get('ticket_id')}`\n"
+                f"**{bot.emoji.GUILD} Guild**: {guild.name}\n"
+                f"**{bot.emoji.USER} Creator**: <@{ticket_data.get('creator_id')}>\n"
+                f"**{bot.emoji.CLOSE} Closed By**: {closed_by.mention if closed_by else 'Unknown'}\n"
+                f"**{bot.emoji.CREATED} Created At**: <t:{int(ticket_data.get('created_at').timestamp())}:F>\n"
+                f"**{bot.emoji.CREATED} Closed At**: <t:{int(ticket_data.get('closed_at').timestamp())}:F>\n"
+                f"**{bot.emoji.TOPIC} Topic**: {channel.topic if channel.topic else 'No topic provided'}\n"
+                f"**{bot.emoji.CHANNEL} Channel ID**: `{channel.id}`\n"
+                f"-# Powered by {bot.user.name}"
             )
-            view = discord.ui.View()
+            actions = []
             if transcript_url:
-                transcript_button = discord.ui.Button(
-                    label="Transcript",
-                    style=discord.ButtonStyle.gray,
-                    url=transcript_url,
-                    emoji=bot.emoji.TRANSCRIPT,
+                actions.append(
+                    discord.ui.Button(
+                        label="Transcript",
+                        style=discord.ButtonStyle.link,
+                        url=transcript_url,
+                        emoji=bot.emoji.TRANSCRIPT,
+                    )
                 )
-                view.add_item(transcript_button)
-            embed.set_footer(
-                text=f"Powered by {bot.user.name}", icon_url=bot.user.display_avatar.url
-            )
+            view = _build_layout_with_actions([close_markdown], actions, timeout=None)
             if channel:
                 try:
-                    await channel.send(embed=embed, view=view)
-                except:
-                    logger.error(f"Error sending ticket closed message to channel: {e}")
+                    await channel.send(view=view)
+                except Exception:
+                    logger.error("Error sending ticket closed message to channel")
             if creator:
                 try:
-                    await creator.send(embed=embed, view=view)
-                except:
-                    logger.error(f"Error sending ticket closed message to creator: {e}")
+                    await creator.send(view=view)
+                except Exception:
+                    logger.error("Error sending ticket closed message to creator")
         except Exception as e:
             logger.error(f"Error sending ticket closed message to creator: {e}")
         return True
@@ -216,6 +287,7 @@ async def ticket_close_action(
 
 
 async def close_ticket_callback(interaction: discord.Interaction, bot: AutoShardedBot):
+    ticket_data = None
     try:
         await interaction.response.defer(ephemeral=True, thinking=True)
         ticket_data = await storage.tickets.get(
@@ -238,7 +310,7 @@ async def close_ticket_callback(interaction: discord.Interaction, bot: AutoShard
         support_roles_str = ticket_settings.get(ticket_module_id_str, {}).get(
             "support_roles", "[]"
         )
-        support_role_ids = json.loads(support_roles_str)
+        support_role_ids = _support_roles(support_roles_str)
 
         if not await checks.close_ticket_permissions(
             user=interaction.user,
@@ -251,34 +323,47 @@ async def close_ticket_callback(interaction: discord.Interaction, bot: AutoShard
                 content=f"{bot.emoji.ERROR} You don't have permission to close this ticket"
             )
 
-        message_view = discord.ui.View.from_message(interaction.message)
-        for item in message_view.children:
-            if isinstance(item, discord.ui.Button):
-                item.disabled = True
-        await interaction.message.edit(view=message_view)
+        disabled_close_button = discord.ui.Button(
+            label="Close Ticket",
+            style=discord.ButtonStyle.gray,
+            emoji=bot.emoji.CLOSE,
+            custom_id="close_ticket",
+            disabled=True,
+        )
+        disabled_close_view = _build_layout_with_actions(
+            [
+                f"## Ticket #{str(ticket_data.get('ticket_id')).zfill(4)}",
+                "-# Close request is being processed...",
+            ],
+            [disabled_close_button],
+            timeout=None,
+        )
+        await interaction.message.edit(view=disabled_close_view)
 
         if await ticket_close_action(
             interaction.guild, ticket_data, bot, interaction.user
         ):
             await interaction.message.edit(
-                embed=discord.Embed(
-                    title=f"Ticket #{str(ticket_data.get('ticket_id')).zfill(4)}",
-                    description="This ticket has been closed",
-                    color=color.red,
+                view=_build_layout_with_actions(
+                    [
+                        f"## Ticket #{str(ticket_data.get('ticket_id')).zfill(4)}",
+                        f"{bot.emoji.CLOSE} This ticket has been closed.",
+                        f"<@{ticket_data.get('creator_id')}>",
+                    ],
+                    [],
+                    timeout=None,
                 ),
-                content=f"<@{ticket_data.get('creator_id')}>",
-                view=None,
             )
             await interaction.edit_original_response(
                 content=f"{bot.emoji.SUCCESS} Ticket closed successfully"
             )
-            # send embed if they want to delete the channel only adminstrators or support roles can delete the channel
-            embed = discord.Embed(
-                title="Delete Confirmation",
-                description="Do you want to delete the Ticket Channel?",
-                color=color.red,
+            delete_view = discord.ui.LayoutView(timeout=None)
+            delete_container = discord.ui.Container()
+            delete_container.add_item(
+                discord.ui.TextDisplay(
+                    f"### {bot.emoji.DELETE} Delete Confirmation\nDo you want to delete the ticket channel?"
+                )
             )
-            view = discord.ui.View(timeout=None)
             DeleteButton = discord.ui.Button(
                 label="Delete Channel",
                 style=discord.ButtonStyle.red,
@@ -288,19 +373,35 @@ async def close_ticket_callback(interaction: discord.Interaction, bot: AutoShard
             DeleteButton.callback = lambda i: delete_channel_callback(
                 i, bot, ticket_data
             )
-            view.add_item(DeleteButton)
-            await interaction.followup.send(embed=embed, view=view)
+            delete_row = discord.ui.ActionRow()
+            delete_row.add_item(DeleteButton)
+            delete_container.add_item(delete_row)
+            delete_view.add_item(delete_container)
+            await interaction.followup.send(view=delete_view)
         else:
             await interaction.edit_original_response(
                 content=f"{bot.emoji.ERROR} Error closing ticket"
             )
     except Exception as e:
         try:
-            message_view = discord.ui.View.from_message(interaction.message)
-            for item in message_view.children:
-                if isinstance(item, discord.ui.Button):
-                    item.disabled = False
-            await interaction.message.edit(view=message_view)
+            if ticket_data:
+                enabled_close_button = discord.ui.Button(
+                    label="Close Ticket",
+                    style=discord.ButtonStyle.gray,
+                    emoji=bot.emoji.CLOSE,
+                    custom_id="close_ticket",
+                )
+                enabled_close_button.callback = lambda i: close_ticket_callback(i, bot)
+                await interaction.message.edit(
+                    view=_build_layout_with_actions(
+                        [
+                            f"## Ticket #{str(ticket_data.get('ticket_id')).zfill(4)}",
+                            "Click the button below to close this ticket",
+                        ],
+                        [enabled_close_button],
+                        timeout=None,
+                    )
+                )
         except:
             pass
         logger.error(f"Error in file {__file__}: {traceback.format_exc()}")
@@ -333,22 +434,18 @@ async def send_close_ticket_module(ticket_data, bot: AutoShardedBot):
             )
         except:
             message = None
-        if json.loads(ticket_data.get("close_ticket_message_embed", r"{}")):
-            embed = discord.Embed.from_dict(
-                json.loads(ticket_data.get("close_ticket_message_embed", r"{}"))
-            )
-        else:
-            embed = discord.Embed(
-                title=f"Ticket #{str(ticket_data.get('ticket_id')).zfill(4)}",
-                description="Click the button below to close this ticket",
-                color=color.gray,
-            )
-            embed.set_footer(
-                text=f"Powered by {bot.user.name}", icon_url=bot.user.display_avatar.url
-            )
-            embed.set_thumbnail(url=bot.urls.TICKET)
-
-        view = discord.ui.View(timeout=None)
+        close_embed_data = _parse_json_field(
+            ticket_data.get("close_ticket_message_embed", r"{}"), {}
+        )
+        close_title = _safe_text(
+            close_embed_data.get("title") if isinstance(close_embed_data, dict) else "",
+            f"Ticket #{str(ticket_data.get('ticket_id')).zfill(4)}",
+        )
+        close_description = _safe_text(
+            ticket_data.get("close_ticket_message_content")
+            or (close_embed_data.get("description") if isinstance(close_embed_data, dict) else ""),
+            "Click the button below to close this ticket",
+        )
 
         CloseTicketButton = discord.ui.Button(
             label="Close Ticket",
@@ -357,40 +454,38 @@ async def send_close_ticket_module(ticket_data, bot: AutoShardedBot):
             custom_id="close_ticket",
         )
         CloseTicketButton.callback = lambda i: close_ticket_callback(i, bot)
-        view.add_item(CloseTicketButton)
-
-        content = (
-            f"<@{ticket_data.get('creator_id')}>"
-            if ticket_data.get("creator_id")
-            else ""
+        view = _build_layout_with_actions(
+            [f"## {close_title}", close_description],
+            [CloseTicketButton],
+            timeout=None,
         )
+
+        mention_parts = []
+        if ticket_data.get("creator_id"):
+            mention_parts.append(f"<@{ticket_data.get('creator_id')}>")
 
         guild_id_str = str(guild.id)
         ticket_module_id_str = str(ticket_data.get("ticket_module_id", 0))
         ticket_settings = cache.ticket_settings.get(guild_id_str, {})
-        print(ticket_settings)
         support_roles_str = ticket_settings.get(ticket_module_id_str, {}).get(
             "support_roles", "[]"
         )
-        support_role_ids = json.loads(support_roles_str)
-
-        print(support_role_ids)
+        support_role_ids = _support_roles(support_roles_str)
 
         if support_role_ids:
-            content += "\n" + " ".join(f"<@&{role_id}>" for role_id in support_role_ids)
+            mention_parts.extend(f"<@&{role_id}>" for role_id in support_role_ids)
+        mention_line = " ".join(mention_parts)
+        lines = [f"## {close_title}", close_description]
+        if mention_line:
+            lines.append(mention_line)
+        view = _build_layout_with_actions(
+            lines,
+            [CloseTicketButton],
+            timeout=None,
+        )
 
-        if message:
-            await message.edit(embed=embed, view=view, content=content)
-        else:
-            allowed_mentions = discord.AllowedMentions(
-                everyone=False, roles=True, users=True
-            )
-            message = await channel.send(
-                embed=embed,
-                view=view,
-                content=content,
-                allowed_mentions=allowed_mentions,
-            )
+        message = await _edit_or_resend_v2_message(channel, message, view)
+        if message and message.id != ticket_data.get("close_ticket_message_id"):
             await storage.tickets.update(
                 id=ticket_data["id"], close_ticket_message_id=message.id
             )
@@ -522,7 +617,18 @@ async def create_ticket_callback(interaction: discord.Interaction, bot: AutoShar
                             add_reactions=True,
                         ),
                     }
-                    support_roles = json.loads(
+                    overwrites[interaction.guild.me] = discord.PermissionOverwrite(
+                        view_channel=True,
+                        send_messages=True,
+                        read_message_history=True,
+                        read_messages=True,
+                        attach_files=True,
+                        embed_links=True,
+                        add_reactions=True,
+                        manage_messages=True,
+                        manage_channels=True,
+                    )
+                    support_roles = _support_roles(
                         ticket_module_data.get("support_roles", r"[]")
                     )
                     for role_id in support_roles:
@@ -600,27 +706,18 @@ async def send_ticket_panel_message(ticket_settings_data, bot: AutoShardedBot):
         except:
             message = None
 
-        if json.loads(ticket_settings_data.get("ticket_panel_message_embed", r"{}")):
-            embed = discord.Embed.from_dict(
-                json.loads(
-                    ticket_settings_data.get("ticket_panel_message_embed", r"{}")
-                )
-            )
-        else:
-            embed = discord.Embed(
-                title="Open a ticket",
-                description="Click the button below to open a ticket",
-                color=color.gray,
-            )
-            embed.set_author(
-                name=guild.name, icon_url=guild.icon.url if guild.icon else None
-            )
-            embed.set_footer(
-                text=f"Powered by {bot.user.name}", icon_url=bot.user.display_avatar.url
-            )
-            embed.set_thumbnail(url=bot.urls.TICKET)
-
-        view = discord.ui.View(timeout=None)
+        panel_embed_data = _parse_json_field(
+            ticket_settings_data.get("ticket_panel_message_embed", r"{}"), {}
+        )
+        panel_title = _safe_text(
+            panel_embed_data.get("title") if isinstance(panel_embed_data, dict) else "",
+            "Open a ticket",
+        )
+        panel_description = _safe_text(
+            ticket_settings_data.get("ticket_panel_message_content")
+            or (panel_embed_data.get("description") if isinstance(panel_embed_data, dict) else ""),
+            "Click the button below to open a ticket",
+        )
 
         CreateTicketButton = discord.ui.Button(
             label="Create Ticket",
@@ -629,12 +726,14 @@ async def send_ticket_panel_message(ticket_settings_data, bot: AutoShardedBot):
             custom_id="create_ticket",
         )
         CreateTicketButton.callback = lambda i: create_ticket_callback(i, bot)
-        view.add_item(CreateTicketButton)
+        view = _build_layout_with_actions(
+            [f"# {panel_title}", panel_description, f"-# Powered by {bot.user.name}"],
+            [CreateTicketButton],
+            timeout=None,
+        )
 
-        if message:
-            await message.edit(embed=embed, view=view)
-        else:
-            message = await channel.send(embed=embed, view=view)
+        message = await _edit_or_resend_v2_message(channel, message, view)
+        if message and message.id != ticket_settings_data.get("ticket_panel_message_id"):
             await storage.ticket_settings.update(
                 id=ticket_settings_data["id"],
                 guild_id=ticket_settings_data["guild_id"],

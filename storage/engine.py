@@ -19,11 +19,16 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _clean_document(document: dict[str, Any] | None) -> dict[str, Any] | None:
+def _clean_document(document: dict[str, Any] | None, datetime_fields: set[str] | None = None) -> dict[str, Any] | None:
     if not document:
         return None
     cleaned = dict(document)
     cleaned.pop('_id', None)
+    if datetime_fields:
+        for field_name in datetime_fields:
+            value = cleaned.get(field_name)
+            if isinstance(value, datetime) and not value.tzinfo:
+                cleaned[field_name] = value.replace(tzinfo=timezone.utc)
     return cleaned
 
 
@@ -101,7 +106,7 @@ class CollectionStore:
             {'$set': update_data},
             return_document=ReturnDocument.AFTER,
         )
-        cleaned = _clean_document(result)
+        cleaned = _clean_document(result, self.datetime_fields)
         await self._trigger_update_hook(cleaned)
         return cleaned
 
@@ -109,19 +114,19 @@ class CollectionStore:
         prepared = self._build_filters(filters)
         collection = await self._collection()
         result = await collection.find_one(prepared or {}, sort=[('id', 1)])
-        return _clean_document(result)
+        return _clean_document(result, self.datetime_fields)
 
     async def gets(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         prepared = self._build_filters(filters)
         collection = await self._collection()
         cursor = collection.find(prepared or {}).sort('id', 1)
-        return [_clean_document(document) for document in await cursor.to_list(length=None)]
+        return [_clean_document(document, self.datetime_fields) for document in await cursor.to_list(length=None)]
 
     async def delete(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         prepared = self._build_filters(filters)
         collection = await self._collection()
         cursor = collection.find(prepared or {}).sort('id', 1)
-        documents = [_clean_document(document) for document in await cursor.to_list(length=None)]
+        documents = [_clean_document(document, self.datetime_fields) for document in await cursor.to_list(length=None)]
         if not documents:
             return []
         await collection.delete_many({'id': {'$in': [document['id'] for document in documents]}})
@@ -132,7 +137,7 @@ class CollectionStore:
     async def get_all(self) -> list[dict[str, Any]]:
         collection = await self._collection()
         cursor = collection.find({}).sort('id', 1)
-        return [_clean_document(document) for document in await cursor.to_list(length=None)]
+        return [_clean_document(document, self.datetime_fields) for document in await cursor.to_list(length=None)]
 
     async def count(self, filters: dict[str, Any]) -> int:
         prepared = self._build_filters(filters)
@@ -142,7 +147,7 @@ class CollectionStore:
     async def delete_limited(self, limit: int, filters: dict[str, Any]) -> list[dict[str, Any]]:
         prepared = self._build_filters(filters)
         collection = await self._collection()
-        documents = [_clean_document(document) for document in await collection.find(prepared).sort('id', -1).to_list(length=None)]
+        documents = [_clean_document(document, self.datetime_fields) for document in await collection.find(prepared).sort('id', -1).to_list(length=None)]
         if len(documents) <= limit:
             return []
         overflow = documents[limit:]

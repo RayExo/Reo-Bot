@@ -110,7 +110,7 @@ class ready(commands.Cog):
         try:
             shards_log_webhook = self.bot.channels.shards_log_webhook
             if shards_log_webhook:
-                embed = discord.Embed(description=f"{self.bot.emoji.SUCCESS if embed_color == color.green else self.bot.emoji.ERROR} | {msg}", color=embed_color)
+                embed = discord.Embed(description=f"{msg}", color=embed_color)
                 requests.post(shards_log_webhook, json={"embeds": [embed.to_dict()]},timeout=5)
             else:
                 logger.warning(f"Could not send shard log: {msg}")

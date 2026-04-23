@@ -21,6 +21,31 @@ from reo.engine.Bot import AutoShardedBot
 import storage
 from reo.src.modules import ticket_panel
 
+def _support_roles(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        parsed = value
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            return []
+    else:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    out = []
+    for role_id in parsed:
+        try:
+            out.append(int(role_id))
+        except Exception:
+            continue
+    return out
+
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot:AutoShardedBot = bot
@@ -31,6 +56,34 @@ class Ticket(commands.Cog):
             hidden =  False
             emoji = self.bot.emoji.TICKET
         self.cog_info = cog_info
+
+    async def _safe_ctx_send(self, ctx: commands.Context, **kwargs):
+        try:
+            return await ctx.send(**kwargs)
+        except discord.NotFound:
+            if ctx.channel:
+                return await ctx.channel.send(**kwargs)
+            raise
+
+    def _embed_to_content(self, embed: discord.Embed | None) -> str:
+        if not embed:
+            return ""
+        lines = []
+        if embed.title:
+            lines.append(f"## {embed.title}")
+        if embed.description:
+            lines.append(embed.description)
+        for field in embed.fields:
+            field_name = (field.name or "").strip()
+            field_value = (field.value or "").strip()
+            if field_name:
+                lines.append(f"**{field_name}**")
+            if field_value:
+                lines.append(field_value)
+        footer_text = getattr(embed.footer, "text", None)
+        if footer_text:
+            lines.append(f"-# {footer_text}")
+        return "\n".join(lines)[:1900]
 
     
     @commands.hybrid_group(
@@ -99,7 +152,7 @@ class Ticket(commands.Cog):
                         ticket_module_id = list(ticket_settings_cache.keys())[current_page_index]
                         ticket_settings_data = ticket_settings_cache.get(ticket_module_id,{})
                         support_roles_text = ", ".join(
-                            [f"<@&{role_id}>" for role_id in json.loads(ticket_settings_data.get("support_roles", "[]"))]
+                            [f"<@&{role_id}>" for role_id in _support_roles(ticket_settings_data.get("support_roles", "[]"))]
                         )
                         if not support_roles_text:
                             support_roles_text = "`Not Set Yet`"
@@ -133,30 +186,31 @@ class Ticket(commands.Cog):
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
             
-            async def get_view(disabled:bool=False):
+            async def get_view(disabled:bool=False, summary_text:str=""):
                 try:
                     nonlocal current_page_index
-                    view = discord.ui.View(timeout=80)
+                    view = discord.ui.LayoutView(timeout=80)
                     reset_view_timeout()
                     ticket_settings_cache = cache.ticket_settings.get(str(ctx.guild.id),{})
+                    container = discord.ui.Container()
+                    if summary_text:
+                        container.add_item(discord.ui.TextDisplay(summary_text))
+                        container.add_item(discord.ui.Separator())
                     
                     previous_button = discord.ui.Button(
                         label="Previous",
-                        row=0,
                         style=discord.ButtonStyle.blurple,
                         emoji=self.bot.emoji.PREVIOUS,
                         disabled=current_page_index <= 0                    
                     )
                     stop_button = discord.ui.Button(
                         label="Stop",
-                        row=0,
                         style=discord.ButtonStyle.red,
                         emoji=self.bot.emoji.STOP,
                         disabled=len(ticket_settings_cache) <= 1
                     )
                     next_button = discord.ui.Button(
                         label="Next",
-                        row=0,
                         style=discord.ButtonStyle.blurple,
                         emoji=self.bot.emoji.NEXT,
                         disabled=current_page_index >= len(ticket_settings_cache)-1 or len(ticket_settings_cache) <= 1
@@ -164,47 +218,56 @@ class Ticket(commands.Cog):
                     previous_button.callback = lambda i: previous_button_callback(i)
                     stop_button.callback = lambda i: stop_button_callback(i)
                     next_button.callback = lambda i: next_button_callback(i)
-                    view.add_item(previous_button)
-                    view.add_item(stop_button)
-                    view.add_item(next_button)
+                    nav_row = discord.ui.ActionRow()
+                    nav_row.add_item(previous_button)
+                    nav_row.add_item(stop_button)
+                    nav_row.add_item(next_button)
+                    container.add_item(nav_row)
 
                     create_button = discord.ui.Button(
                         label="Create",
-                        row=1,
                         style=discord.ButtonStyle.green,
                         emoji=self.bot.emoji.CREATE
                     )
                     create_button.callback = lambda i: create_button_callback(i)
-                    view.add_item(create_button)
                     delete_button = discord.ui.Button(
                         label="Delete This",
-                        row=1,
                         style=discord.ButtonStyle.red,
                         emoji=self.bot.emoji.DELETE
                     )
                     delete_button.callback = lambda i: delete_button_callback(i)
-                    view.add_item(delete_button)
+                    action_row = discord.ui.ActionRow()
+                    action_row.add_item(create_button)
+                    action_row.add_item(delete_button)
+                    container.add_item(action_row)
 
-                    edit_select = discord.ui.Select(
-                        placeholder="Select a ticket module to edit",
-                        options=[
-                            discord.SelectOption(
-                                label=f"{ticket_module_id}",
-                                value=f"{ticket_module_id}"
-                            ) for ticket_module_id in ticket_settings_cache
-                        ] if len(ticket_settings_cache) > 0 else None,
-                        min_values=1,
-                        max_values=1,
-                        row=2
-                    )
-                    edit_select.callback = lambda i: edit_select_callback(i)
                     if len(ticket_settings_cache) > 0:
-                        view.add_item(edit_select)
+                        edit_select = discord.ui.Select(
+                            placeholder="Select a ticket module to edit",
+                            options=[
+                                discord.SelectOption(
+                                    label=f"{ticket_module_id}",
+                                    value=f"{ticket_module_id}"
+                                ) for ticket_module_id in ticket_settings_cache
+                            ],
+                            min_values=1,
+                            max_values=1
+                        )
+                        edit_select.callback = lambda i: edit_select_callback(i)
+                        select_row = discord.ui.ActionRow()
+                        select_row.add_item(edit_select)
+                        container.add_item(select_row)
                     
 
                     if disabled:
-                        for item in view.children:
-                            item.disabled = True
+                        for component in container.children:
+                            if hasattr(component, "children"):
+                                for child in component.children:
+                                    if hasattr(child, "disabled"):
+                                        child.disabled = True
+                            elif hasattr(component, "disabled"):
+                                component.disabled = True
+                    view.add_item(container)
                     return view
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
@@ -237,7 +300,7 @@ class Ticket(commands.Cog):
                     await storage.ticket_settings.insert(
                         guild_id=ctx.guild.id
                     )
-                    await interaction.message.edit(embed=await get_embed(),view=await get_view())
+                    await interaction.message.edit(view=await get_view(summary_text=self._embed_to_content(await get_embed())))
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -268,7 +331,7 @@ class Ticket(commands.Cog):
                         guild_id=ctx.guild.id,
                         ticket_module_id=ticket_module_id
                     )
-                    await interaction.message.edit(embed=await get_embed(),view=await get_view())
+                    await interaction.message.edit(view=await get_view(summary_text=self._embed_to_content(await get_embed())))
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -278,13 +341,43 @@ class Ticket(commands.Cog):
                         return await interaction.response.send_message(embed=discord.Embed(description="You are not authorized to use this button",color=color.red),ephemeral=True,delete_after=10)
                     nonlocal current_page_index
 
-                    MODULE_ID = interaction.data['values'][0]
+                    selected_values = interaction.data.get('values', []) if interaction.data else []
+                    if not selected_values:
+                        return await interaction.response.send_message(embed=discord.Embed(description="No ticket module selected",color=color.red),ephemeral=True,delete_after=10)
+                    MODULE_ID = selected_values[0]
 
                     ticket_settings_data = cache.ticket_settings.get(str(ctx.guild.id),{}).get(MODULE_ID,{})
                     if not ticket_settings_data:
                         return await interaction.response.send_message(embed=discord.Embed(description="Ticket module not found",color=color.red),ephemeral=True,delete_after=10)
 
                     await interaction.response.defer()
+
+                    def _default_channel_values(channel_id):
+                        if not channel_id:
+                            return []
+                        try:
+                            resolved_id = int(channel_id)
+                        except (TypeError, ValueError):
+                            return []
+                        channel_obj = ctx.guild.get_channel(resolved_id)
+                        return [channel_obj] if channel_obj else []
+
+                    def _default_role_values(role_ids):
+                        values = []
+                        for role_id in role_ids:
+                            role_obj = ctx.guild.get_role(role_id)
+                            if role_obj:
+                                values.append(role_obj)
+                        return values
+
+                    def _selected_single_id(interaction: discord.Interaction):
+                        values = interaction.data.get('values', []) if interaction.data else []
+                        if not values:
+                            return None
+                        try:
+                            return int(values[0])
+                        except (TypeError, ValueError):
+                            return None
 
                     async def get_selected_edit_embed():
                         ticket_settings_data = cache.ticket_settings.get(str(ctx.guild.id),{}).get(MODULE_ID,{})
@@ -349,7 +442,7 @@ class Ticket(commands.Cog):
                         )
                         embed.add_field(
                             name="Support Roles",
-                            value=', '.join([f"<@&{role_id}>" for role_id in json.loads(ticket_settings_data.get('support_roles','[]'))]) if len(json.loads(ticket_settings_data.get('support_roles','[]'))) > 0 else '`Not Set Yet`',
+                            value=', '.join([f"<@&{role_id}>" for role_id in _support_roles(ticket_settings_data.get('support_roles','[]'))]) if len(_support_roles(ticket_settings_data.get('support_roles','[]'))) > 0 else '`Not Set Yet`',
                             inline=True
                         )
                         embed.add_field(
@@ -365,97 +458,108 @@ class Ticket(commands.Cog):
                         embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url if ctx.guild.icon else self.bot.user.display_avatar.url)
                         return embed
                     
-                    async def get_selected_view(disabled:bool=False):
-                        view = discord.ui.View(timeout=80)
+                    async def get_selected_view(disabled:bool=False, summary_text:str=""):
+                        view = discord.ui.LayoutView(timeout=80)
                         reset_view_timeout()
                         ticket_settings_data = cache.ticket_settings.get(str(ctx.guild.id),{}).get(MODULE_ID,{})
+                        container = discord.ui.Container()
+                        if summary_text:
+                            container.add_item(discord.ui.TextDisplay(summary_text))
+                            container.add_item(discord.ui.Separator())
 
                         enable_disable_button = discord.ui.Button(
                             label="Click to Enable" if not ticket_settings_data.get('enabled',False) else "Click to Disable",
-                            row=0,
                             style=discord.ButtonStyle.green if not ticket_settings_data.get('enabled',False) else discord.ButtonStyle.gray,
                             emoji=self.bot.emoji.ENABLED if not ticket_settings_data.get('enabled',False) else self.bot.emoji.DISABLED
                         )
                         enable_disable_button.callback = lambda i: enable_disable_button_callback(i)
-                        view.add_item(enable_disable_button)
                     
                         edit_ticket_limit_button = discord.ui.Button(
                             label="Open Limit",
-                            row=0,
                             style=discord.ButtonStyle.blurple,
                             emoji=self.bot.emoji.LIMIT
                         )
                         edit_ticket_limit_button.callback = lambda i: edit_ticket_limit_button_callback(i)
-                        view.add_item(edit_ticket_limit_button)
 
                         send_ticket_panel_button = discord.ui.Button(
                             label="Send Ticket Panel",
-                            row=0,
                             style=discord.ButtonStyle.blurple,
                             emoji=self.bot.emoji.MESSAGE,
                             disabled=not ticket_settings_data.get('ticket_panel_channel_id',False)
                         )
                         send_ticket_panel_button.callback = lambda i: send_ticket_panel_button_callback(i)
-                        view.add_item(send_ticket_panel_button)
 
                         back_button = discord.ui.Button(
                             label="Back",
-                            row=0,
                             style=discord.ButtonStyle.red,
                             emoji=self.bot.emoji.BACK
                         )
                         back_button.callback = lambda i: back_button_callback(i)
-                        view.add_item(back_button)
+                        controls_row = discord.ui.ActionRow()
+                        controls_row.add_item(enable_disable_button)
+                        controls_row.add_item(edit_ticket_limit_button)
+                        controls_row.add_item(send_ticket_panel_button)
+                        controls_row.add_item(back_button)
+                        container.add_item(controls_row)
 
                         edit_open_ticket_category_select = discord.ui.ChannelSelect(
                             channel_types=[discord.ChannelType.category],
                             placeholder="Select a Category for Open Tickets",
-                            row=1,
                             max_values=1,
                             min_values=0,
-                            default_values=[ctx.guild.get_channel(ticket_settings_data.get('open_ticket_category_id'))] if ticket_settings_data.get('open_ticket_category_id') else None
+                            default_values=_default_channel_values(ticket_settings_data.get('open_ticket_category_id')) or None
                         )
                         edit_open_ticket_category_select.callback = lambda i: edit_open_ticket_category_select_callback(i)
-                        view.add_item(edit_open_ticket_category_select)
+                        open_category_row = discord.ui.ActionRow()
+                        open_category_row.add_item(edit_open_ticket_category_select)
+                        container.add_item(open_category_row)
                         
                         edit_closed_ticket_category_select = discord.ui.ChannelSelect(
                             channel_types=[discord.ChannelType.category],
                             placeholder="Select a Category for Closed Tickets",
-                            row=2,
                             max_values=1,
                             min_values=0,
-                            default_values=[ctx.guild.get_channel(ticket_settings_data.get('closed_ticket_category_id'))] if ticket_settings_data.get('closed_ticket_category_id') else None
+                            default_values=_default_channel_values(ticket_settings_data.get('closed_ticket_category_id')) or None
                         )
                         edit_closed_ticket_category_select.callback = lambda i: edit_closed_ticket_category_select_callback(i)
-                        view.add_item(edit_closed_ticket_category_select)
+                        closed_category_row = discord.ui.ActionRow()
+                        closed_category_row.add_item(edit_closed_ticket_category_select)
+                        container.add_item(closed_category_row)
 
                         select_ticket_channel = discord.ui.ChannelSelect(
                             channel_types=[discord.ChannelType.text],
                             placeholder="Select a Channel for Ticket Panel",
-                            row=3,
                             max_values=1,
                             min_values=0,
-                            default_values=[ctx.guild.get_channel(ticket_settings_data.get('ticket_panel_channel_id'))] if ticket_settings_data.get('ticket_panel_channel_id') else None
+                            default_values=_default_channel_values(ticket_settings_data.get('ticket_panel_channel_id')) or None
                         )
 
                         select_ticket_channel.callback = lambda i: select_ticket_channel_callback(i)
-                        view.add_item(select_ticket_channel)
+                        panel_channel_row = discord.ui.ActionRow()
+                        panel_channel_row.add_item(select_ticket_channel)
+                        container.add_item(panel_channel_row)
 
                         support_roles = discord.ui.RoleSelect(
                             placeholder="Select Support Roles",
-                            row=4,
                             max_values=10,
                             min_values=0,
-                            default_values=[ctx.guild.get_role(role_id) for role_id in json.loads(ticket_settings_data.get('support_roles','[]'))] if len(json.loads(ticket_settings_data.get('support_roles','[]'))) > 0 else None
+                            default_values=_default_role_values(_support_roles(ticket_settings_data.get('support_roles','[]'))) or None
                         )
                         support_roles.callback = lambda i: support_roles_callback(i)
-                        view.add_item(support_roles)
+                        support_roles_row = discord.ui.ActionRow()
+                        support_roles_row.add_item(support_roles)
+                        container.add_item(support_roles_row)
 
                         
                         if disabled:
-                            for item in view.children:
-                                item.disabled = True
-
+                            for component in container.children:
+                                if hasattr(component, "children"):
+                                    for child in component.children:
+                                        if hasattr(child, "disabled"):
+                                            child.disabled = True
+                                elif hasattr(component, "disabled"):
+                                    component.disabled = True
+                        view.add_item(container)
                         return view
                     
                     async def back_button_callback(interaction:discord.Interaction):
@@ -463,7 +567,7 @@ class Ticket(commands.Cog):
                             if interaction.user.id != ctx.author.id:
                                 return await interaction.response.send_message(embed=discord.Embed(description="You are not authorized to use this button",color=color.red),ephemeral=True,delete_after=10)
                             await interaction.response.defer()
-                            await interaction.message.edit(embed=await get_embed(),view=await get_view())
+                            await interaction.message.edit(view=await get_view(summary_text=self._embed_to_content(await get_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
                     
@@ -475,15 +579,17 @@ class Ticket(commands.Cog):
                             if not ticket_settings_data:
                                 return await interaction.response.send_message(embed=discord.Embed(description="Ticket module not found",color=color.red),ephemeral=True,delete_after=10)
                             await interaction.response.defer()
-                            new_support_roles = [int(role) for role in interaction.data['values']]
-                            print(new_support_roles)
+                            new_support_roles = [
+                                int(role_id) for role_id in (interaction.data.get('values', []) if interaction.data else [])
+                                if str(role_id).isdigit()
+                            ]
                             await storage.ticket_settings.update(
                                 id=ticket_settings_data.get('id'),
                                 guild_id=ctx.guild.id,
                                 ticket_module_id=MODULE_ID,
-                                support_roles=json.dumps(new_support_roles)
+                                support_roles=new_support_roles
                             )
-                            await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                            await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
                     
@@ -497,10 +603,10 @@ class Ticket(commands.Cog):
                             await interaction.response.defer()
                             ticket_panel_channel = ctx.guild.get_channel(ticket_settings_data.get('ticket_panel_channel_id'))
                             if not ticket_panel_channel:
-                                return await interaction.response.send_message(embed=discord.Embed(description="Ticket panel channel not found",color=color.red),ephemeral=True,delete_after=10)
+                                return await interaction.followup.send(content="Ticket panel channel not found",ephemeral=True)
 
                             await ticket_panel.send_ticket_panel_message(ticket_settings_data,self.bot)
-                            await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                            await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
                     
@@ -513,7 +619,7 @@ class Ticket(commands.Cog):
                             if not ticket_settings_data:
                                 return await interaction.response.send_message(embed=discord.Embed(description="Ticket module not found",color=color.red),ephemeral=True,delete_after=10)
                             await interaction.response.defer()
-                            new_ticket_panel_channel_id = interaction.data['values'][0]
+                            new_ticket_panel_channel_id = _selected_single_id(interaction)
                             await storage.ticket_settings.update(
                                 id=ticket_settings_data.get('id'),
                                 guild_id=ctx.guild.id,
@@ -537,7 +643,7 @@ class Ticket(commands.Cog):
                                 )
                             except:
                                 pass
-                            await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                            await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -550,14 +656,14 @@ class Ticket(commands.Cog):
                             if not ticket_settings_data:
                                 return await interaction.response.send_message(embed=discord.Embed(description="Ticket module not found",color=color.red),ephemeral=True,delete_after=10)
                             await interaction.response.defer()
-                            new_closed_ticket_category_id = interaction.data['values'][0]
+                            new_closed_ticket_category_id = _selected_single_id(interaction)
                             await storage.ticket_settings.update(
                                 id=ticket_settings_data.get('id'),
                                 guild_id=ctx.guild.id,
                                 ticket_module_id=MODULE_ID,
                                 closed_ticket_category_id=new_closed_ticket_category_id
                             )
-                            await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                            await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -576,7 +682,7 @@ class Ticket(commands.Cog):
                                 ticket_module_id=MODULE_ID,
                                 enabled=not ticket_settings_data.get('enabled',False)
                             )
-                            await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                            await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -613,7 +719,7 @@ class Ticket(commands.Cog):
                                             ticket_module_id=MODULE_ID,
                                             ticket_limit=new_ticket_limit
                                         )
-                                        await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                                        await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                                     except Exception as e:
                                         logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
                             await interaction.response.send_modal(set_ticket_limit())
@@ -628,17 +734,17 @@ class Ticket(commands.Cog):
                             if not ticket_settings_data:
                                 return await interaction.response.send_message(embed=discord.Embed(description="Ticket module not found",color=color.red),ephemeral=True,delete_after=10)
                             await interaction.response.defer()
-                            new_open_ticket_category_id = interaction.data['values'][0]
+                            new_open_ticket_category_id = _selected_single_id(interaction)
                             await storage.ticket_settings.update(
                                 id=ticket_settings_data.get('id'),
                                 guild_id=ctx.guild.id,
                                 ticket_module_id=MODULE_ID,
                                 open_ticket_category_id=new_open_ticket_category_id
                             )
-                            await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                            await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                         except Exception as e:
                             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
-                    await interaction.message.edit(embed=await get_selected_edit_embed(),view=await get_selected_view())
+                    await interaction.message.edit(view=await get_selected_view(summary_text=self._embed_to_content(await get_selected_edit_embed())))
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
             
@@ -648,7 +754,7 @@ class Ticket(commands.Cog):
                         return await interaction.response.send_message(embed=discord.Embed(description="You are not authorized to use this button",color=color.red),ephemeral=True,delete_after=10)
                     nonlocal current_page_index
                     current_page_index -= 1
-                    await interaction.response.edit_message(embed=await get_embed(),view=await get_view())
+                    await interaction.response.edit_message(view=await get_view(summary_text=self._embed_to_content(await get_embed())))
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -658,7 +764,7 @@ class Ticket(commands.Cog):
                         return await interaction.response.send_message(embed=discord.Embed(description="You are not authorized to use this button",color=color.red),ephemeral=True,delete_after=10)
                     nonlocal cancled
                     cancled = True
-                    await interaction.response.edit_message(embed=await get_embed(),view=await get_view(disabled=True))
+                    await interaction.response.edit_message(view=await get_view(disabled=True, summary_text=self._embed_to_content(await get_embed())))
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -668,14 +774,14 @@ class Ticket(commands.Cog):
                         return await interaction.response.send_message(embed=discord.Embed(description="You are not authorized to use this button",color=color.red),ephemeral=True,delete_after=10)
                     nonlocal current_page_index
                     current_page_index += 1
-                    await interaction.response.edit_message(embed=await get_embed(),view=await get_view())
+                    await interaction.response.edit_message(view=await get_view(summary_text=self._embed_to_content(await get_embed())))
                 except Exception as e:
                     logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
 
 
 
-            message = await ctx.send(embed=await get_embed(),view=await get_view())
+            message = await ctx.send(view=await get_view(summary_text=self._embed_to_content(await get_embed())))
 
             while not cancled:
                 try:
@@ -698,22 +804,24 @@ class Ticket(commands.Cog):
     @checks.blacklist_check()
     async def ticket_close(self,ctx: commands.Context,module_id:int=None,ticket_id:int=None):
         try:
+            if ctx.interaction and not ctx.interaction.response.is_done():
+                await ctx.defer()
             if not await checks.check_is_moderator_permissions(ctx,'administrator'):
                 return
             if not module_id and not ticket_id:
                 ticket_data = await storage.tickets.get(guild_id=ctx.guild.id,channel_id=ctx.channel.id)
                 if not ticket_data:
-                    return await ctx.send(embed=discord.Embed(description="This is not a ticket channel",color=color.red))
+                    return await self._safe_ctx_send(ctx, embed=discord.Embed(description="This is not a ticket channel",color=color.red))
             else:
                 ticket_data = await storage.tickets.get(guild_id=ctx.guild.id,ticket_module_id=module_id,ticket_id=ticket_id)
                 if not ticket_data:
-                    return await ctx.send(embed=discord.Embed(description="Ticket not found",color=color.red))
+                    return await self._safe_ctx_send(ctx, embed=discord.Embed(description="Ticket not found",color=color.red))
             if ticket_data.get('closed',False):
-                return await ctx.send(embed=discord.Embed(description=f"Ticket: {ticket_data.get('ticket_id')} is already closed",color=color.red))
+                return await self._safe_ctx_send(ctx, embed=discord.Embed(description=f"Ticket: {ticket_data.get('ticket_id')} is already closed",color=color.red))
             if await ticket_panel.ticket_close_action(guild=ctx.guild,ticket_data=ticket_data,bot=self.bot,closed_by=ctx.author):
-                await ctx.send(embed=discord.Embed(description="Ticket closed successfully",color=color.green))
+                await self._safe_ctx_send(ctx, embed=discord.Embed(description="Ticket closed successfully",color=color.green))
             else:
-                await ctx.send(embed=discord.Embed(description="Failed to close the ticket",color=color.red))
+                await self._safe_ctx_send(ctx, embed=discord.Embed(description="Failed to close the ticket",color=color.red))
         except Exception as e:
             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
 
@@ -727,26 +835,35 @@ class Ticket(commands.Cog):
     @checks.blacklist_check()
     async def ticket_delete(self,ctx: commands.Context,module_id:int=None,ticket_id:int=None):
         try:
+            if ctx.interaction and not ctx.interaction.response.is_done():
+                await ctx.defer()
             if not await checks.check_is_moderator_permissions(ctx,'administrator'):
                 return
             if not module_id and not ticket_id:
                 ticket_data = await storage.tickets.get(guild_id=ctx.guild.id,channel_id=ctx.channel.id)
                 if not ticket_data:
-                    return await ctx.send(embed=discord.Embed(description="This is not a ticket channel",color=color.red))
+                    return await self._safe_ctx_send(ctx, embed=discord.Embed(description="This is not a ticket channel",color=color.red))
             else:
                 ticket_data = await storage.tickets.get(guild_id=ctx.guild.id,ticket_module_id=module_id,ticket_id=ticket_id)
                 if not ticket_data:
-                    return await ctx.send(embed=discord.Embed(description="Ticket not found",color=color.red))
+                    return await self._safe_ctx_send(ctx, embed=discord.Embed(description="Ticket not found",color=color.red))
             
             if not ticket_data.get('closed',False):
-                return await ctx.send(embed=discord.Embed(description=f"Ticket: {ticket_data.get('ticket_id')} is not closed yet",color=color.red))
+                return await self._safe_ctx_send(ctx, embed=discord.Embed(description=f"Ticket: {ticket_data.get('ticket_id')} is not closed yet",color=color.red))
 
             embed = discord.Embed(
                 title="Delete Confirmation",
                 description="Do you want to delete the Ticket Channel?",
                 color=color.red
             )
-            view = discord.ui.View(timeout=None)
+            view = discord.ui.LayoutView(timeout=None)
+            container = discord.ui.Container()
+            container.add_item(
+                discord.ui.TextDisplay(
+                    f"### {self.bot.emoji.DELETE} Delete Confirmation\n"
+                    "Do you want to delete the ticket channel?"
+                )
+            )
             DeleteButton = discord.ui.Button(
                 label="Delete Channel",
                 style=discord.ButtonStyle.red,
@@ -754,7 +871,10 @@ class Ticket(commands.Cog):
                 custom_id="delete_channel"
             )
             DeleteButton.callback = lambda i: ticket_panel.delete_channel_callback(i,self.bot,ticket_data)
-            view.add_item(DeleteButton)
-            await ctx.send(embed=embed,view=view)
+            action_row = discord.ui.ActionRow()
+            action_row.add_item(DeleteButton)
+            container.add_item(action_row)
+            view.add_item(container)
+            await self._safe_ctx_send(ctx, view=view)
         except Exception as e:
             logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")

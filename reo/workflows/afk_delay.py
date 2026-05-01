@@ -15,7 +15,7 @@ from reo.style import color
 async def afk_delay(bot: AutoShardedBot, data):
     try:
         if not data.get('afk_end'):
-            return logger.warning(f"Error updating table {storage.afk.TableName}: afk_end is not set")
+            return logger.warning(f"Error updating table {storage.afk.CollectionName}: afk_end is not set")
         afk_end = data.get('afk_end')
         second_delay = (afk_end - datetime.datetime.now(tz=datetime.timezone.utc)).total_seconds()
         

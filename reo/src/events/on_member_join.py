@@ -300,7 +300,7 @@ class on_member_join(commands.Cog):
             if not welcomer_cache.get('autorole'):
                 return logger.warning(f"Guild {guild.name} has autorole disabled")
             
-            autoroles = json.loads(welcomer_cache.get('autoroles','[]'))
+            autoroles = welcomer_cache.get('autoroles', [])
             if not autoroles:
                 return logger.warning(f"Guild {guild.name} has no autoroles")
             
@@ -345,7 +345,7 @@ class on_member_join(commands.Cog):
                 return
             if not welcomer_cache.get('greet'):
                 return logger.error(f"Guild {member.guild.name} has greeting disabled")
-            channel_ids = json.loads(welcomer_cache.get('greet_channels','[]'))
+            channel_ids = welcomer_cache.get('greet_channels', [])
             if not channel_ids:
                 return logger.error(f"Channel ID not found for greeting in {member.guild.name}")
             for channel_id in channel_ids:

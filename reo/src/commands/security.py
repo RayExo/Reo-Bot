@@ -1513,7 +1513,7 @@ class Security(commands.Cog):
 
                 return
 
-            extra_owner_ids = json.loads(guilds_cache.get("extra_owner_ids", "[]"))
+            extra_owner_ids = guilds_cache.get("extra_owner_ids", [])
 
             guilds_subscription = guilds_cache.get("subscription", "free")
 
@@ -1564,7 +1564,7 @@ class Security(commands.Cog):
             extra_owner_ids.append(str(member.id))
 
             await storage.guilds.update(
-                id=guilds_cache.get("id"), extra_owner_ids=json.dumps(extra_owner_ids)
+                id=guilds_cache.get("id"), extra_owner_ids=extra_owner_ids
             )
 
             await ctx.send(
@@ -1608,7 +1608,7 @@ class Security(commands.Cog):
 
             guilds_cache = cache.guilds.get(str(ctx.guild.id), {})
 
-            extra_owner_ids = json.loads(guilds_cache.get("extra_owner_ids", "[]"))
+            extra_owner_ids = guilds_cache.get("extra_owner_ids", [])
 
             if str(member.id) not in extra_owner_ids:
 
@@ -1625,7 +1625,7 @@ class Security(commands.Cog):
             extra_owner_ids.remove(str(member.id))
 
             await storage.guilds.update(
-                id=guilds_cache.get("id"), extra_owner_ids=json.dumps(extra_owner_ids)
+                id=guilds_cache.get("id"), extra_owner_ids=extra_owner_ids
             )
 
             await ctx.send(
@@ -1667,7 +1667,7 @@ class Security(commands.Cog):
 
             guilds_cache = cache.guilds.get(str(ctx.guild.id), {})
 
-            extra_owner_ids = json.loads(guilds_cache.get("extra_owner_ids", "[]"))
+            extra_owner_ids = guilds_cache.get("extra_owner_ids", [])
 
             if not extra_owner_ids:
 

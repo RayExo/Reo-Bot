@@ -148,7 +148,7 @@ async def backup_guild(guild_id: int, bot: AutoShardedBot):
 
             data["users"].append(member_data)
 
-        await storage.guilds_backup.insert(guild_id=guild_id, backup=json.dumps(data))
+        await storage.guilds_backup.insert(guild_id=guild_id, backup=data)
 
     except Exception as e:
 

@@ -22,24 +22,10 @@ import storage
 from reo.src.modules import ticket_panel
 
 def _support_roles(value):
-    if value is None:
-        return []
-    if isinstance(value, list):
-        parsed = value
-    elif isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return []
-        try:
-            parsed = json.loads(text)
-        except Exception:
-            return []
-    else:
-        return []
-    if not isinstance(parsed, list):
+    if not isinstance(value, list):
         return []
     out = []
-    for role_id in parsed:
+    for role_id in value:
         try:
             out.append(int(role_id))
         except Exception:

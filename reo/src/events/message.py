@@ -690,13 +690,8 @@ class message(commands.Cog):
 
                 return
 
-            whitelist_roles = json.loads(
-                guild_cache.get("antispam_whitelist_roles", "[]")
-            )  # ids
-
-            whitelist_channels = json.loads(
-                guild_cache.get("antispam_whitelist_channels", "[]")
-            )  # ids
+            whitelist_roles = guild_cache.get("antispam_whitelist_roles", [])  # ids
+            whitelist_channels = guild_cache.get("antispam_whitelist_channels", [])  # ids
 
             if message.channel.id in whitelist_channels:
 

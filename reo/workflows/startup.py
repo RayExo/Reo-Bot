@@ -39,7 +39,7 @@ async def check_guilds_subscription(bot: AutoShardedBot):
                     if guild:
                         guild_cache = cache.guilds.get(str(guild.id))
                         owners = [guild.owner]
-                        for extra_owner_id in json.loads(guild_cache.get('extra_owner_ids','[]')):
+                        for extra_owner_id in guild_cache.get('extra_owner_ids', []):
                             owner = await bot.fetch_user(extra_owner_id)
                             if owner:
                                 owners.append(owner)

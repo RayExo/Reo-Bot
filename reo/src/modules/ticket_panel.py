@@ -26,25 +26,14 @@ from io import BytesIO
 def _parse_json_field(value, default):
     if value is None:
         return default
-    if isinstance(value, (dict, list)):
-        return value
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return default
-        try:
-            return json.loads(text)
-        except Exception:
-            return default
-    return default
+    return value
 
 
 def _support_roles(value):
-    raw = _parse_json_field(value, [])
-    if not isinstance(raw, list):
+    if not isinstance(value, list):
         return []
     out = []
-    for role_id in raw:
+    for role_id in value:
         try:
             out.append(int(role_id))
         except Exception:

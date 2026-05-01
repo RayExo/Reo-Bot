@@ -1023,9 +1023,7 @@ class Automod(commands.Cog):
 
                 embed.add_field(name="", value="", inline=False)
 
-                antilink_whitelist_roles = json.loads(
-                    Automod_Cache.get("antilink_whitelist_roles", "[]")
-                )
+                antilink_whitelist_roles = Automod_Cache.get("antilink_whitelist_roles", [])
 
                 embed.add_field(
                     name="Whitelisted Roles",
@@ -1039,9 +1037,7 @@ class Automod(commands.Cog):
                     inline=True,
                 )
 
-                antilink_whitelist_channels = json.loads(
-                    Automod_Cache.get("antilink_whitelist_channels", "[]")
-                )
+                antilink_whitelist_channels = Automod_Cache.get("antilink_whitelist_channels", [])
 
                 embed.add_field(
                     name="Whitelisted Channels",
@@ -1174,9 +1170,7 @@ class Automod(commands.Cog):
 
                     view.add_item(run_setup_button)
 
-                    antilink_whitelist_roles = json.loads(
-                        Automod_Cache.get("antilink_whitelist_roles", "[]")
-                    )
+                    antilink_whitelist_roles = Automod_Cache.get("antilink_whitelist_roles", [])
 
                     whitelist_roles_select = discord.ui.RoleSelect(
                         placeholder="Select Whitelisted Roles",
@@ -1200,9 +1194,7 @@ class Automod(commands.Cog):
 
                     view.add_item(whitelist_roles_select)
 
-                    antilink_whitelist_channels = json.loads(
-                        Automod_Cache.get("antilink_whitelist_channels", "[]")
-                    )
+                    antilink_whitelist_channels = Automod_Cache.get("antilink_whitelist_channels", [])
 
                     whitelist_channels_select = discord.ui.ChannelSelect(
                         placeholder="Select Whitelisted Channels",
@@ -1278,9 +1270,7 @@ class Automod(commands.Cog):
 
                             whitelist_roles = []
 
-                            for role_id in json.loads(
-                                Automod_Cache.get("antilink_whitelist_roles", "[]")
-                            ):
+                            for role_id in Automod_Cache.get("antilink_whitelist_roles", []):
 
                                 role = ctx.guild.get_role(int(role_id))
 
@@ -1290,9 +1280,7 @@ class Automod(commands.Cog):
 
                             whitelist_channels = []
 
-                            for channel_id in json.loads(
-                                Automod_Cache.get("antilink_whitelist_channels", "[]")
-                            ):
+                            for channel_id in Automod_Cache.get("antilink_whitelist_channels", []):
 
                                 channel = await ctx.guild.fetch_channel(int(channel_id))
 
@@ -1416,9 +1404,7 @@ class Automod(commands.Cog):
                     await storage.automod.update(
                         id=Automod_Cache.get("id"),
                         guild_id=ctx.guild.id,
-                        antilink_whitelist_channels=json.dumps(
-                            [channel.id for channel in whitelist_channels]
-                        ),
+                        antilink_whitelist_channels=[channel.id for channel in whitelist_channels],
                     )
 
                     await interaction.message.edit(
@@ -1496,9 +1482,7 @@ class Automod(commands.Cog):
                     await storage.automod.update(
                         id=Automod_Cache.get("id"),
                         guild_id=ctx.guild.id,
-                        antilink_whitelist_roles=json.dumps(
-                            [role.id for role in whitelist_roles]
-                        ),
+                        antilink_whitelist_roles=[role.id for role in whitelist_roles],
                     )
 
                     await interaction.message.edit(
@@ -1563,9 +1547,7 @@ class Automod(commands.Cog):
 
                         whitelist_roles = []
 
-                        for role_id in json.loads(
-                            Automod_Cache.get("antilink_whitelist_roles", "[]")
-                        ):
+                        for role_id in Automod_Cache.get("antilink_whitelist_roles", []):
 
                             role = ctx.guild.get_role(int(role_id))
 
@@ -1575,9 +1557,7 @@ class Automod(commands.Cog):
 
                         whitelist_channels = []
 
-                        for channel_id in json.loads(
-                            Automod_Cache.get("antilink_whitelist_channels", "[]")
-                        ):
+                        for channel_id in Automod_Cache.get("antilink_whitelist_channels", []):
 
                             channel = await ctx.guild.fetch_channel(int(channel_id))
 
@@ -1708,16 +1688,14 @@ class Automod(commands.Cog):
                 embed.add_field(
                     name="Bad Words",
                     value=(
-                        f"||{', '.join(json.loads(Automod_Cache.get('antibadwords_words','[]')))}||"
-                        if json.loads(Automod_Cache.get("antibadwords_words", "[]"))
+                        f"||{', '.join(Automod_Cache.get('antibadwords_words', []))}||"
+                        if Automod_Cache.get("antibadwords_words")
                         else "Not Set Yet"
                     ),
                     inline=False,
                 )
 
-                antibadwords_whitelist_roles = json.loads(
-                    Automod_Cache.get("antibadwords_whitelist_roles", "[]")
-                )
+                antibadwords_whitelist_roles = Automod_Cache.get("antibadwords_whitelist_roles", [])
 
                 embed.add_field(
                     name="Whitelisted Roles",
@@ -1734,9 +1712,7 @@ class Automod(commands.Cog):
                     inline=True,
                 )
 
-                antibadwords_whitelist_channels = json.loads(
-                    Automod_Cache.get("antibadwords_whitelist_channels", "[]")
-                )
+                antibadwords_whitelist_channels = Automod_Cache.get("antibadwords_whitelist_channels", [])
 
                 embed.add_field(
                     name="Whitelisted Channels",
@@ -1890,9 +1866,7 @@ class Automod(commands.Cog):
 
                     view.add_item(set_bad_words_button)
 
-                    antibadwords_whitelist_roles = json.loads(
-                        Automod_Cache.get("antibadwords_whitelist_roles", "[]")
-                    )
+                    antibadwords_whitelist_roles = Automod_Cache.get("antibadwords_whitelist_roles", [])
 
                     whitelist_roles_select = discord.ui.RoleSelect(
                         placeholder="Select Whitelisted Roles",
@@ -1916,9 +1890,7 @@ class Automod(commands.Cog):
 
                     view.add_item(whitelist_roles_select)
 
-                    antibadwords_whitelist_channels = json.loads(
-                        Automod_Cache.get("antibadwords_whitelist_channels", "[]")
-                    )
+                    antibadwords_whitelist_channels = Automod_Cache.get("antibadwords_whitelist_channels", [])
 
                     whitelist_channels_select = discord.ui.ChannelSelect(
                         placeholder="Select Whitelisted Channels",
@@ -1980,7 +1952,7 @@ class Automod(commands.Cog):
                             label="Bad Words",
                             placeholder="Comma separated bad words",
                             default=", ".join(
-                                json.loads(AutomodCache.get("antibadwords_words", "[]"))
+                                AutomodCache.get("antibadwords_words", [])
                             ),
                             required=False,
                             style=discord.TextStyle.long,
@@ -2043,7 +2015,7 @@ class Automod(commands.Cog):
                                 await storage.automod.update(
                                     id=AutomodCache.get("id"),
                                     guild_id=ctx.guild.id,
-                                    antibadwords_words=json.dumps(bad_words),
+                                    antibadwords_words=bad_words,
                                 )
 
                                 await interaction.message.edit(
@@ -2119,9 +2091,7 @@ class Automod(commands.Cog):
 
                         whitelist_roles = []
 
-                        for role_id in json.loads(
-                            Automod_Cache.get("antibadwords_whitelist_roles", "[]")
-                        ):
+                        for role_id in Automod_Cache.get("antibadwords_whitelist_roles", []):
 
                             role = ctx.guild.get_role(int(role_id))
 
@@ -2131,9 +2101,7 @@ class Automod(commands.Cog):
 
                         whitelist_channels = []
 
-                        for channel_id in json.loads(
-                            Automod_Cache.get("antibadwords_whitelist_channels", "[]")
-                        ):
+                        for channel_id in Automod_Cache.get("antibadwords_whitelist_channels", []):
 
                             channel = await ctx.guild.fetch_channel(int(channel_id))
 
@@ -2213,9 +2181,7 @@ class Automod(commands.Cog):
 
                             whitelist_roles = []
 
-                            for role_id in json.loads(
-                                Automod_Cache.get("antibadwords_whitelist_roles", "[]")
-                            ):
+                            for role_id in Automod_Cache.get("antibadwords_whitelist_roles", []):
 
                                 role = ctx.guild.get_role(int(role_id))
 
@@ -2225,11 +2191,7 @@ class Automod(commands.Cog):
 
                             whitelist_channels = []
 
-                            for channel_id in json.loads(
-                                Automod_Cache.get(
-                                    "antibadwords_whitelist_channels", "[]"
-                                )
-                            ):
+                            for channel_id in Automod_Cache.get("antibadwords_whitelist_channels", []):
 
                                 channel = await ctx.guild.fetch_channel(int(channel_id))
 
@@ -2245,9 +2207,7 @@ class Automod(commands.Cog):
                                     type=discord.AutoModRuleTriggerType.keyword,
                                     keyword_filter=[
                                         f"*{keyword}*"
-                                        for keyword in json.loads(
-                                            Automod_Cache.get("antibadwords_words", [])
-                                        )
+                                        for keyword in Automod_Cache.get("antibadwords_words", [])
                                     ],
                                 ),
                                 actions=[
@@ -2363,9 +2323,7 @@ class Automod(commands.Cog):
                     await storage.automod.update(
                         id=Automod_Cache.get("id"),
                         guild_id=ctx.guild.id,
-                        antibadwords_whitelist_channels=json.dumps(
-                            [channel.id for channel in whitelist_channels]
-                        ),
+                        antibadwords_whitelist_channels=[channel.id for channel in whitelist_channels],
                     )
 
                     await interaction.message.edit(
@@ -2445,9 +2403,7 @@ class Automod(commands.Cog):
                     await storage.automod.update(
                         id=Automod_Cache.get("id"),
                         guild_id=ctx.guild.id,
-                        antibadwords_whitelist_roles=json.dumps(
-                            [role.id for role in whitelist_roles]
-                        ),
+                        antibadwords_whitelist_roles=[role.id for role in whitelist_roles],
                     )
 
                     await interaction.message.edit(
@@ -2605,14 +2561,10 @@ class Automod(commands.Cog):
                         "\n".join(
                             [
                                 f"<@&{role_id}>"
-                                for role_id in json.loads(
-                                    AutomodCache.get("antispam_whitelist_roles", "[]")
-                                )
+                                for role_id in AutomodCache.get("antispam_whitelist_roles", [])
                             ]
                         )
-                        if json.loads(
-                            AutomodCache.get("antispam_whitelist_roles", "[]")
-                        )
+                        if AutomodCache.get("antispam_whitelist_roles")
                         else "Not Set Yet"
                     ),
                     inline=True,
@@ -2624,16 +2576,10 @@ class Automod(commands.Cog):
                         "\n".join(
                             [
                                 f"<#{channel_id}>"
-                                for channel_id in json.loads(
-                                    AutomodCache.get(
-                                        "antispam_whitelist_channels", "[]"
-                                    )
-                                )
+                                for channel_id in AutomodCache.get("antispam_whitelist_channels", [])
                             ]
                         )
-                        if json.loads(
-                            AutomodCache.get("antispam_whitelist_channels", "[]")
-                        )
+                        if AutomodCache.get("antispam_whitelist_channels")
                         else "Not Set Yet"
                     ),
                     inline=True,
@@ -2702,9 +2648,7 @@ class Automod(commands.Cog):
                         max_values=25,
                         default_values=[
                             ctx.guild.get_role(int(role_id))
-                            for role_id in json.loads(
-                                AutomodCache.get("antispam_whitelist_roles", "[]")
-                            )
+                            for role_id in AutomodCache.get("antispam_whitelist_roles", [])
                         ],
                         custom_id="whitelist_roles_select",
                         row=1,
@@ -2727,9 +2671,7 @@ class Automod(commands.Cog):
                         max_values=25,
                         default_values=[
                             await ctx.guild.fetch_channel(int(channel_id))
-                            for channel_id in json.loads(
-                                AutomodCache.get("antispam_whitelist_channels", "[]")
-                            )
+                            for channel_id in AutomodCache.get("antispam_whitelist_channels", [])
                         ],
                         custom_id="whitelist_channels_select",
                         row=2,
@@ -2858,7 +2800,7 @@ class Automod(commands.Cog):
                     await storage.automod.update(
                         id=AutomodCache.get("id"),
                         guild_id=ctx.guild.id,
-                        antispam_whitelist_roles=json.dumps(whitelist_roles),
+                        antispam_whitelist_roles=whitelist_roles,
                     )
 
                     await interaction.message.edit(
@@ -2897,7 +2839,7 @@ class Automod(commands.Cog):
                     await storage.automod.update(
                         id=AutomodCache.get("id"),
                         guild_id=ctx.guild.id,
-                        antispam_whitelist_channels=json.dumps(whitelist_channels),
+                        antispam_whitelist_channels=whitelist_channels,
                     )
 
                     await interaction.message.edit(

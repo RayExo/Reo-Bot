@@ -273,15 +273,15 @@ async def change_guild_subscription(bot:AutoShardedBot,guild_id:int,subscription
                 logger.error(f"Error in file {__file__} at line {traceback.extract_tb(sys.exc_info()[2])[0][1]}: {e}")
             try:
                 # update autoroles limit to 3 if subscription is free
-                cuted_autoroles = json.loads(welcomer_cache.get("autoroles", '[]'))[:3]
-                greet_channels = json.loads(welcomer_cache.get("greet_channels", '[]'))[:5]
+                cuted_autoroles = welcomer_cache.get("autoroles", [])[:3]
+                greet_channels = welcomer_cache.get("greet_channels", [])[:5]
                 await storage.welcomer_settings.update(
                     id=welcomer_cache.get("id"),
                     guild_id=guild_id,
                     autoroles_limit=3,
-                    autoroles=json.dumps(cuted_autoroles),
+                    autoroles=cuted_autoroles,
                     autonick=False,
-                    greet_channels=json.dumps(greet_channels)
+                    greet_channels=greet_channels
                 )
                 logger.info(f"Updated Autoroles Limit to 1 for guild_id: {guild_id}")
             except Exception as e:

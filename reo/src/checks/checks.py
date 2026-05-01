@@ -102,7 +102,7 @@ async def check_for_giveaway_permissions(ctx:commands.Context,permission:str="ma
 
 async def check_extra_owners(member:discord.Member,guild:discord.Guild):
     try:
-        extra_owner_ids = json.loads(cache.guilds.get(str(guild.id),{}).get('extra_owner_ids','[]'))
+        extra_owner_ids = cache.guilds.get(str(guild.id), {}).get("extra_owner_ids", [])
         guilds_cache = cache.guilds.get(str(guild.id),{})
         guilds_subscription = guilds_cache.get('subscription','free')
         if guilds_subscription == 'free':

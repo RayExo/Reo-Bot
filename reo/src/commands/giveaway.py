@@ -110,12 +110,6 @@ def normalize_winners(winners: Any) -> list:
         return []
     if isinstance(winners, list):
         return winners
-    if isinstance(winners, str):
-        try:
-            loaded = json.loads(winners)
-            return loaded if isinstance(loaded, list) else []
-        except Exception:
-            return []
     return []
 
 
